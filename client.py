@@ -2,7 +2,7 @@ import socket
 import pickle
 from tic_tac_toe import TicTacToe
 
-HOST = '192.168.43.220'
+HOST = '127.0.0.1'
 PORT = 5015
 SCORES_FILE = "scores.txt"
 BUFFER_SIZE = 1024
@@ -13,12 +13,14 @@ def get_valid_coordinate(game):
         if coord in [f"{r}{c}" for r in "ABC" for c in "123"]:
             row = ord(coord[0]) - ord('A')
             col = int(coord[1]) - 1
-            if game.symbol_list[row][col] == " ":
+            index = row * 3 + col
+            if 0 <= index < 9 and game.symbol_list[index] == " ":
                 return coord
             else:
                 print("Square already taken. Try again.")
         else:
             print("Invalid format. Use A1, B2, etc.")
+
 
 def send_data(sock, data):
     try:

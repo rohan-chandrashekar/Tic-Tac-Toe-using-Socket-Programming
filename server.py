@@ -2,7 +2,7 @@ import socket
 import pickle
 from tic_tac_toe import TicTacToe
 
-HOST = '192.168.43.220'
+HOST = '127.0.0.1'
 PORT = 5015
 SCORES_FILE = "scores.txt"
 BUFFER_SIZE = 1024
