@@ -1,94 +1,148 @@
-import socket # for networking
-import pickle # for sending/receiving objects 
-
-# import the game
+import socket
+import pickle
 from tic_tac_toe import TicTacToe
 
-HOST = '192.168.43.220' # this address is the "local host"
-PORT = 5015       # port to listen on for clients  
+HOST = '192.168.43.220'
+PORT = 5015
+SCORES_FILE = "scores.txt"
+BUFFER_SIZE = 1024
 
-# set up the server 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)   
-s.bind((HOST, PORT))
-s.listen(5)
+def get_valid_coordinate(game):
+    while True:
+        coord = input("Enter coordinate (e.g., A1, B2): ").strip().upper()
+        if coord in [f"{r}{c}" for r in "ABC" for c in "123"]:
+            row = ord(coord[0]) - ord('A')
+            col = int(coord[1]) - 1
+            if game.symbol_list[row][col] == " ":
+                return coord
+            else:
+                print("Square already taken. Try again.")
+        else:
+            print("Invalid format. Use A1, B2, etc.")
 
-# accept a connection from the client 
-client_socket, client_address = s.accept()
-print(f"\nConnnected to {client_address}!")
+def send_data(sock, data):
+    try:
+        sock.send(pickle.dumps(data))
+    except Exception as e:
+        print(f"[Network Error] Could not send data: {e}")
+        raise
 
-# set up the game
-player_x = TicTacToe("X")
+def receive_data(sock):
+    try:
+        data = sock.recv(BUFFER_SIZE)
+        return pickle.loads(data)
+    except Exception as e:
+        print(f"[Network Error] Could not receive data: {e}")
+        raise
 
-# allow the player to suggest playing again
-rematch = True
+def update_scores(result):
+    try:
+        with open(SCORES_FILE, "a") as f:
+            f.write(result + "\n")
+    except Exception as e:
+        print(f"[File Error] Could not update scores: {e}")
 
-while rematch == True:
-    # a header for an intense tic-tac-toe match! 
-    print(f"\n\n T I C - T A C - T O E ")
+def display_score_history():
+    print("======== YOUR HISTORY ========")
+    try:
+        with open(SCORES_FILE, 'r') as fin:
+            for element in fin:
+                print(element.strip())
+    except FileNotFoundError:
+        print("No previous games found.")
 
-    # the rest is in a loop; if either player has won, it exits
-    while player_x.did_win("X") == False and player_x.did_win("O") == False and player_x.is_draw() == False:
-        # draw grid, ask for coordinate
-        print(f"\n       Your turn!")
-        player_x.draw_grid()
-        player_coord = input(f"Enter coordinate: ")
-        player_x.edit_square(player_coord)
+def main():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.bind((HOST, PORT))
+        s.listen(1)
+        print(f"Server listening on {HOST}:{PORT}")
+        client_socket, client_address = s.accept()
+        print(f"\nConnected to {client_address}!")
+    except Exception as e:
+        print(f"[Connection Error] Could not start server: {e}")
+        return
 
-        # draw the grid again
-        player_x.draw_grid()
+    win, draw, lose = 0, 0, 0
+    rematch = True
 
-        # pickle the symbol list and send it 
-        x_symbol_list = pickle.dumps(player_x.symbol_list)
-        client_socket.send(x_symbol_list)
-
-        # if the player won with the last move or it's a draw, exit the loop 
-        if player_x.did_win("X") == True or player_x.is_draw() == True:
+    while rematch:
+        player_x = TicTacToe("X")
+        print(f"\n\n=== T I C - T A C - T O E ===")
+        try:
+            player_x.draw_grid()
+            print(f"\nYour turn!")
+            player_coord = get_valid_coordinate(player_x)
+            player_x.edit_square(player_coord)
+            player_x.draw_grid()
+            send_data(client_socket, player_x.symbol_list)
+        except Exception:
+            print("Connection lost while sending first move.")
             break
 
-        # wait to receive the symbol list and update it
-        print(f"\nWaiting for other player...")
-        o_symbol_list = client_socket.recv(1024)
-        o_symbol_list = pickle.loads(o_symbol_list)
-        player_x.update_symbol_list(o_symbol_list)
+        while not player_x.did_win("X") and not player_x.did_win("O") and not player_x.is_draw():
+            print(f"\nWaiting for the other player...")
+            try:
+                o_symbol_list = receive_data(client_socket)
+                player_x.update_symbol_list(o_symbol_list)
+            except Exception:
+                print("Connection lost while receiving move.")
+                rematch = False
+                break
+            if player_x.did_win("X") or player_x.did_win("O") or player_x.is_draw():
+                break
+            print(f"\nYour turn!")
+            player_x.draw_grid()
+            player_coord = get_valid_coordinate(player_x)
+            player_x.edit_square(player_coord)
+            player_x.draw_grid()
+            try:
+                send_data(client_socket, player_x.symbol_list)
+            except Exception:
+                print("Connection lost while sending move.")
+                rematch = False
+                break
 
-    # end game messages
-    if player_x.did_win("X") == True:
-        print(f"Congrats, you won!")
-    elif player_x.is_draw() == True:
-        print(f"It's a draw!")
-    else:
-        print(f"Sorry, the client won.")
-
-    # ask for a rematch 
-    host_response = input(f"\nRematch? (Y/N): ")
-    host_response = host_response.capitalize()
-    temp_host_resp = host_response
-    client_response = ""
-
-    # pickle response and send it to the client 
-    host_response = pickle.dumps(host_response)
-    client_socket.send(host_response)
-
-    # if the host doesn't want a rematch, we're done here
-    if temp_host_resp == "N":
-        rematch = False
-
-    # if the host does want a rematch, we ask the client for their opinion
-    else:
-        # receive client's response 
-        print(f"Waiting for client response...")
-        client_response = client_socket.recv(1024)
-        client_response = pickle.loads(client_response)
-
-        # if the client doesn't want a rematch, exit the loop 
-        if client_response == "N":
-            print(f"\nThe client does not want a rematch.")
-            rematch = False
-
-        # if both the host and client want a rematch, restart the game
+        if player_x.did_win("X"):
+            print(f"Congrats, you won!")
+            win += 1
+            update_scores("server won")
+        elif player_x.is_draw():
+            print(f"It's a draw!")
+            draw += 1
+            update_scores("draw")
         else:
-            player_x.restart()
+            print(f"Sorry, the client won.")
+            lose += 1
+            update_scores("server lost")
 
-spacer = input(f"\nThank you for playing!\nPress enter to quit...\n")
+        display_score_history()
+        print(f"Score: Won: {win} | Lost: {lose} | Draw: {draw}")
 
-client_socket.close()
+        while True:
+            choice = input("Do you want a rematch? (y/n): ").strip().lower()
+            if choice in ("y", "n"):
+                try:
+                    send_data(client_socket, choice)
+                    other_choice = receive_data(client_socket)
+                except Exception:
+                    print("Connection lost during rematch negotiation.")
+                    rematch = False
+                    break
+                if choice == "y" and other_choice == "y":
+                    print("Both players agreed! Starting a new game.")
+                    rematch = True
+                    break
+                else:
+                    print("Rematch declined. Exiting.")
+                    rematch = False
+                    break
+            else:
+                print("Please enter 'y' or 'n'.")
+
+    client_socket.close()
+    s.close()
+    input(f"\nThank you for playing!\nPress enter to quit...\n")
+
+if __name__ == "__main__":
+    main()
