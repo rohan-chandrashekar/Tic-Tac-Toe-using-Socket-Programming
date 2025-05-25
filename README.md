@@ -14,7 +14,17 @@ This Tic-Tac-Toe game is a network-based multiplayer game where the **client** a
 - **Persistent Game Records:** The outcome of each game (win, lose, draw) is stored in a file system, allowing players to track their performance.
 - **Cross-Machine Compatibility:** The server and client can run on different machines, with IP addresses set accordingly in the code.
 - **Dynamic Challenge System:** The client initiates a new challenge, and the server responds, ensuring real-time interaction.
-  
+- **Input Validation:** User input for moves is validated for format and availability, preventing invalid or duplicate entries.
+- **Clearer Prompts & Instructions:** All prompts and error messages are now more user-friendly and informative.
+- **Robust Rematch Logic:** After each game, both players must agree to a rematch. If either declines, the session ends gracefully.
+- **Score Tracking & Display:** Wins, draws, and losses are tracked for both client and server. Score history is displayed after each game and stored in a file.
+- **Reliable Game Board Reset:** The board is reset at the start of every new game.
+- **Network Error Handling:** Socket operations are robust, with clear feedback if network issues occur.
+- **Graceful Shutdown:** Sockets and files are closed properly on exit.
+- **Modular Code & Constants:** Repetitive logic is moved into functions, and configuration values (host, port, file names) are now constants at the top for easier maintenance.
+
+> **Note:** These improvements are part of the `f/game_improvements` branch.
+
 ## 🚀 Getting Started
 
 ### 1. **Prerequisites:**
